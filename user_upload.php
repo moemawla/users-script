@@ -1,5 +1,7 @@
 <?php
 
+const DATABASE_NAME = 'Catalyst';
+
 $shortOptions = 'u:p:h:';
 
 $longOptions = [
@@ -20,8 +22,11 @@ if (!array_key_exists('u', $argumentList) ||
 }
 
 // create and check database connection
-$conn = new mysqli($argumentList['h'], $argumentList['u'], $argumentList['p']);
+$conn = new mysqli($argumentList['h'], $argumentList['u'], $argumentList['p'], DATABASE_NAME);
 
 if ($conn->connect_error) {
   die('Connection failed: ' . $conn->connect_error);
 }
+
+// close database connection
+$conn->close();
