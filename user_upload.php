@@ -1,5 +1,7 @@
 <?php
 
+error_reporting(E_ERROR | E_PARSE);
+
 const DATABASE_NAME = 'Catalyst';
 
 $shortOptions = 'u:p:h:';
@@ -30,17 +32,27 @@ if ($dbConnection->connect_error) {
     exit;
 }
 
+// create the users table if it doesnt exist
 if (array_key_exists('create_table', $argumentList)) {
     createTable($dbConnection);
-    exit;
+    closeAndExit($dbConnection);
 }
 
-// close database connection
-$dbConnection->close();
+// parse the CSV file
+if (array_key_exists('file', $argumentList)) {
+    parseCSV($argumentList['file']);
+    closeAndExit($dbConnection);
+}
+
 
 /**
  * declare helper functions
  */
+
+ function closeAndExit(mysqli $connection) {
+    $connection->close();
+    exit;
+ }
 
 function logMessage(string $message) {
     fwrite(STDOUT, $message);
@@ -61,4 +73,23 @@ SQL;
         return;
     }
     logMessage('Failed creating the users table');
+}
+
+function parseCSV(string $fileName) {
+    $handle = fopen($fileName, 'r');
+
+    if (!$handle) {
+        logMessage('Failed opening the CSV file');
+        return;
+    }
+
+    // skip the fields row
+    fgetcsv($handle);
+
+    // start processing data
+    while (($data = fgetcsv($handle)) !== FALSE) {
+        // TODO: handle record
+    }
+
+    fclose($handle);
 }
