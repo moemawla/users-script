@@ -21,7 +21,7 @@ if (!array_key_exists('help', $argumentList) &&
     !array_key_exists('file', $argumentList) &&
     !array_key_exists('create_table', $argumentList)
 ) {
-    logMessage('You need to specify a directive, call the script with "--help" for more explanation');
+    outputMessage('You need to specify a directive, call the script with "--help" for more explanation');
     exit;
 }
 
@@ -36,7 +36,7 @@ if (!array_key_exists('u', $argumentList) ||
     !array_key_exists('p', $argumentList) ||
     !array_key_exists('h', $argumentList)
 ) {
-    logMessage('Please provide the credentials for connecting to the database');
+    outputMessage('Please provide the credentials for connecting to the database');
     exit;
 }
 
@@ -44,14 +44,15 @@ if (!array_key_exists('u', $argumentList) ||
 $dbConnection = new mysqli($argumentList['h'], $argumentList['u'], $argumentList['p'], DATABASE_NAME);
 
 if ($dbConnection->connect_error) {
-    logMessage(sprintf('Connection failed: %s', $dbConnection->connect_error));
+    outputMessage(sprintf('Connection failed: %s', $dbConnection->connect_error));
     exit;
 }
 
-// create the users table if it doesnt exist
+// create the users table
 if (array_key_exists('create_table', $argumentList)) {
     createTable($dbConnection);
-    closeAndExit($dbConnection);
+    $dbConnection->close();
+    exit;
 }
 
 // parse the CSV file
@@ -59,25 +60,26 @@ if (array_key_exists('file', $argumentList)) {
     parseCSV(
         $dbConnection,
         $argumentList['file'],
-        array_key_exists('dry_run', $argumentList)
+        array_key_exists('dry_run', $argumentList) // check if dry_run was requested
     );
-    closeAndExit($dbConnection);
-}
-
-
-/**
- * declare helper functions
- */
-
-function closeAndExit(mysqli $connection): void {
-    $connection->close();
+    $dbConnection->close();
     exit;
 }
 
-function logMessage(string $message): void {
+// *****************************
+// declare the helper functions
+// *****************************
+
+/**
+ * Outputs the message to STDOUT
+ */
+function outputMessage(string $message): void {
     fwrite(STDOUT, $message.PHP_EOL);
 }
 
+/**
+ * Outputs the help text
+ */
 function showHelp(): void {
     $message = <<<MSG
 
@@ -102,9 +104,12 @@ The following are the available directives that can be used:
 
 MSG;
 
-    logMessage($message);
+    outputMessage($message);
 }
 
+/**
+ * Creats the "users" table in the database if it doesn't exist
+ */
 function createTable(mysqli $connection): void {
     $query = <<<SQL
     CREATE TABLE IF NOT EXISTS users (
@@ -116,17 +121,27 @@ function createTable(mysqli $connection): void {
 SQL;
 
     if (true === $connection->query($query)) {
-        logMessage('Users table created successfully');
+        outputMessage('Users table created successfully');
         return;
     }
-    logMessage('Failed creating the users table');
+    outputMessage('Failed creating the users table');
 }
 
+/**
+ * Opens and parses the CSV file provided by name.
+ * 
+ * The CSV file must have the fields in order: name, surname and email.
+ * 
+ * Outputs an error message if the file could not be opened.
+ * 
+ * For each record in the file, it calls the handleSingleUser function which will 
+ * handle saving the user to the DB.
+ */
 function parseCSV(mysqli $connection, string $fileName, bool $dryRun): void {
     $handle = fopen($fileName, 'r');
 
     if (!$handle) {
-        logMessage('Failed opening the CSV file');
+        outputMessage('Failed opening the CSV file');
         return;
     }
 
@@ -143,7 +158,7 @@ function parseCSV(mysqli $connection, string $fileName, bool $dryRun): void {
                 $dryRun ? null : $connection,
             );
         } catch (mysqli_sql_exception $e) {
-            logMessage(sprintf('Database error: %s', $e->getMessage()));
+            outputMessage(sprintf('Database error: %s', $e->getMessage()));
             break;
         }
     }
@@ -151,6 +166,18 @@ function parseCSV(mysqli $connection, string $fileName, bool $dryRun): void {
     fclose($handle);
 }
 
+/**
+ * Handles inserting the user to the DB table "users".
+ * 
+ * Sanitizes values by trimming whitespaces and applying proper casing.
+ * 
+ * Outputs an error message, and then halts execution, if the provided email is not valid.
+ * 
+ * If NULL is passed for $connection, inserting into the DB is skipped and only the validation
+ * is performed.
+ * 
+ * @throws mysqli_sql_exception
+ */
 function handleSingleUser(
     string $name,
     string $surname,
@@ -163,7 +190,7 @@ function handleSingleUser(
 
     // validate email
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        logMessage(sprintf('Invalid email address: %s', $email));
+        outputMessage(sprintf('Invalid email address: %s', $email));
         return;
     }
 
@@ -179,6 +206,6 @@ function handleSingleUser(
     try {
         $statement->execute();
     } catch (mysqli_sql_exception $e) {
-        logMessage(sprintf('Database insert error: %s', $e->getMessage()));
+        outputMessage(sprintf('Database insert error: %s', $e->getMessage()));
     }
 }
