@@ -41,7 +41,11 @@ if (array_key_exists('create_table', $argumentList)) {
 
 // parse the CSV file
 if (array_key_exists('file', $argumentList)) {
-    parseCSV($dbConnection, $argumentList['file']);
+    parseCSV(
+        $dbConnection,
+        $argumentList['file'],
+        array_key_exists('dry_run', $argumentList)
+    );
     closeAndExit($dbConnection);
 }
 
@@ -76,7 +80,7 @@ SQL;
     logMessage('Failed creating the users table');
 }
 
-function parseCSV(mysqli $connection, string $fileName): void {
+function parseCSV(mysqli $connection, string $fileName, bool $dryRun): void {
     $handle = fopen($fileName, 'r');
 
     if (!$handle) {
@@ -90,10 +94,10 @@ function parseCSV(mysqli $connection, string $fileName): void {
     // start processing data
     while (($data = fgetcsv($handle)) !== FALSE) {
         handleSingleUser(
-            $connection,
             $data[0],
             $data[1],
-            $data[2]
+            $data[2],
+            $dryRun ? null : $connection,
         );
     }
 
@@ -101,10 +105,10 @@ function parseCSV(mysqli $connection, string $fileName): void {
 }
 
 function handleSingleUser(
-    mysqli $connection,
     string $name,
     string $surname,
-    string $email
+    string $email,
+    ? mysqli $connection
 ): void {
     $name = ucfirst(strtolower(trim($name)));
     $surname = ucfirst(strtolower(trim($surname)));
@@ -116,8 +120,12 @@ function handleSingleUser(
         return;
     }
 
+    if (!$connection) {
+        return;
+    }
+
     // prepare SQL statement to prevent SQL injections
-    $statement = $connection->prepare("INSERT INTO users (name, surname, email) VALUES (?, ?, ?)");
+    $statement = $connection->prepare('INSERT INTO users (name, surname, email) VALUES (?, ?, ?)');
     $statement->bind_param('sss', $name, $surname, $email);
 
     // execute SQL statement
