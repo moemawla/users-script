@@ -16,6 +16,15 @@ $longOptions = [
 
 $argumentList = getopt($shortOptions, $longOptions);
 
+// check if no valid arguments are passed
+if (!array_key_exists('help', $argumentList) &&
+    !array_key_exists('file', $argumentList) &&
+    !array_key_exists('create_table', $argumentList)
+) {
+    logMessage('You need to specify a directive, call the script with "--help" for more explanation');
+    exit;
+}
+
 // show help
 if (array_key_exists('help', $argumentList)) {
     showHelp();
@@ -87,9 +96,9 @@ The following are the available directives that can be used:
     --file=[csv file name] – This is the name of the CSV to be parsed.
 
     --dry_run – This is used with the --file directive in case you want to run the script but not
-insert into the database. All other functions will be executed, but the database won't be altered.
+    insert into the database. All other functions will be executed, but the database won't be altered.
 
-    --help – Shows an explanation of the script and a list of available arguments that can be used with it.
+    --help – Shows an explanation of the script and a list of available directives that can be used with it.
 
 MSG;
 
