@@ -1,6 +1,7 @@
 <?php
 
 error_reporting(E_ERROR | E_PARSE);
+mysqli_report(MYSQLI_REPORT_ALL);
 
 const DATABASE_NAME = 'Catalyst';
 
@@ -28,7 +29,7 @@ if (!array_key_exists('u', $argumentList) ||
 $dbConnection = new mysqli($argumentList['h'], $argumentList['u'], $argumentList['p'], DATABASE_NAME);
 
 if ($dbConnection->connect_error) {
-    logMessage('Connection failed: ' . $dbConnection->connect_error);
+    logMessage(sprintf('Connection failed: %s', $dbConnection->connect_error));
     exit;
 }
 
@@ -40,7 +41,7 @@ if (array_key_exists('create_table', $argumentList)) {
 
 // parse the CSV file
 if (array_key_exists('file', $argumentList)) {
-    parseCSV($argumentList['file']);
+    parseCSV($dbConnection, $argumentList['file']);
     closeAndExit($dbConnection);
 }
 
@@ -49,16 +50,16 @@ if (array_key_exists('file', $argumentList)) {
  * declare helper functions
  */
 
- function closeAndExit(mysqli $connection) {
+ function closeAndExit(mysqli $connection): void {
     $connection->close();
     exit;
  }
 
-function logMessage(string $message) {
-    fwrite(STDOUT, $message);
+function logMessage(string $message): void {
+    fwrite(STDOUT, $message.PHP_EOL);
 }
 
-function createTable(mysqli $connection) {
+function createTable(mysqli $connection): void {
     $query = <<<SQL
     CREATE TABLE IF NOT EXISTS users (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -75,7 +76,7 @@ SQL;
     logMessage('Failed creating the users table');
 }
 
-function parseCSV(string $fileName) {
+function parseCSV(mysqli $connection, string $fileName): void {
     $handle = fopen($fileName, 'r');
 
     if (!$handle) {
@@ -88,8 +89,41 @@ function parseCSV(string $fileName) {
 
     // start processing data
     while (($data = fgetcsv($handle)) !== FALSE) {
-        // TODO: handle record
+        handleSingleUser(
+            $connection,
+            $data[0],
+            $data[1],
+            $data[2]
+        );
     }
 
     fclose($handle);
+}
+
+function handleSingleUser(
+    mysqli $connection,
+    string $name,
+    string $surname,
+    string $email
+): void {
+    $name = ucfirst(strtolower(trim($name)));
+    $surname = ucfirst(strtolower(trim($surname)));
+    $email = strtolower(trim($email));
+
+    // validate email
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        logMessage(sprintf('Invalid email address: %s', $email));
+        return;
+    }
+
+    // prepare SQL statement to prevent SQL injections
+    $statement = $connection->prepare("INSERT INTO users (name, surname, email) VALUES (?, ?, ?)");
+    $statement->bind_param('sss', $name, $surname, $email);
+
+    // execute SQL statement
+    try {
+        $statement->execute();
+    } catch (mysqli_sql_exception $e) {
+        logMessage(sprintf('Database insert error: %s', $e->getMessage()));
+    }
 }
