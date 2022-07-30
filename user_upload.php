@@ -60,7 +60,7 @@ if (array_key_exists('file', $argumentList)) {
     parseCSV(
         $dbConnection,
         $argumentList['file'],
-        array_key_exists('dry_run', $argumentList) // check if dry_run was requested
+        array_key_exists('dry_run', $argumentList) // check if dry_run is requested
     );
     $dbConnection->close();
     exit;
@@ -147,15 +147,25 @@ function parseCSV(mysqli $connection, string $fileName, bool $dryRun): void {
 
     // skip the fields row
     fgetcsv($handle);
+    $row = 1;
 
     // start processing data
     while (($data = fgetcsv($handle)) !== FALSE) {
+        $row++;
+
+        // make sure the number of values is correct, skip otherwise
+        if (3 !== count($data)) {
+            outputMessage(sprintf('Invalid data provided for row %d', $row));
+            continue;
+        }
+
+        // insert user record to the database
         try {
             handleSingleUser(
                 $data[0],
                 $data[1],
                 $data[2],
-                $dryRun ? null : $connection,
+                $dryRun ? null : $connection, // don't pass connection if dry_run is requested
             );
         } catch (mysqli_sql_exception $e) {
             outputMessage(sprintf('Database error: %s', $e->getMessage()));
