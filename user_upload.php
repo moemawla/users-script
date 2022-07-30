@@ -93,12 +93,17 @@ function parseCSV(mysqli $connection, string $fileName, bool $dryRun): void {
 
     // start processing data
     while (($data = fgetcsv($handle)) !== FALSE) {
-        handleSingleUser(
-            $data[0],
-            $data[1],
-            $data[2],
-            $dryRun ? null : $connection,
-        );
+        try {
+            handleSingleUser(
+                $data[0],
+                $data[1],
+                $data[2],
+                $dryRun ? null : $connection,
+            );
+        } catch (mysqli_sql_exception $e) {
+            logMessage(sprintf('Database error: %s', $e->getMessage()));
+            break;
+        }
     }
 
     fclose($handle);
