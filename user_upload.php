@@ -16,6 +16,12 @@ $longOptions = [
 
 $argumentList = getopt($shortOptions, $longOptions);
 
+// show help
+if (array_key_exists('help', $argumentList)) {
+    showHelp();
+    exit;
+}
+
 // make sure the database credentials are passed
 if (!array_key_exists('u', $argumentList) ||
     !array_key_exists('p', $argumentList) ||
@@ -54,13 +60,40 @@ if (array_key_exists('file', $argumentList)) {
  * declare helper functions
  */
 
- function closeAndExit(mysqli $connection): void {
+function closeAndExit(mysqli $connection): void {
     $connection->close();
     exit;
- }
+}
 
 function logMessage(string $message): void {
     fwrite(STDOUT, $message.PHP_EOL);
+}
+
+function showHelp(): void {
+    $message = <<<MSG
+
+This script is used to parse a CSV file of user records and to insert them into the database table "users".
+
+The following are the available directives that can be used:
+
+    -u – MySQL username [Required]
+
+    -p – MySQL password [Required]
+
+    -h – MySQL host [Required]
+
+    --create_table – This will create the "users" table in the database if it doesn't exist.
+
+    --file=[csv file name] – This is the name of the CSV to be parsed.
+
+    --dry_run – This is used with the --file directive in case you want to run the script but not
+insert into the database. All other functions will be executed, but the database won't be altered.
+
+    --help – Shows an explanation of the script and a list of available arguments that can be used with it.
+
+MSG;
+
+    logMessage($message);
 }
 
 function createTable(mysqli $connection): void {
